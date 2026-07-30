@@ -147,6 +147,12 @@ sudo reboot
 
 This is expected on PCIe-only rigs (including pairwise NVLink bridges). vLLM's custom allreduce kernel requires a full NVLink mesh, which consumer GPUs don't provide. NCCL still uses P2P for all-reduce — that's where the bandwidth improvement comes from. On 2×3090 TP=2, expect ~+2% narrative / ~+9% code generation speedup.
 
+## Known Issues
+
+### System sleep/suspend broken
+
+The patched driver breaks suspend/resume on some setups. If you need sleep functionality, revert to stock modules (`sudo ./uninstall.sh`) or keep the system running headless. This is a known limitation of the aikitoria patch, not the installer.
+
 ## Uninstall
 
 ```bash
