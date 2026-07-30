@@ -1,0 +1,9 @@
+[Trigger]
+Type = Package
+Operation = Upgrade
+Target = nvidia-open-dkms
+
+[Action]
+Description = Rebuilding patched NVIDIA P2P modules after driver upgrade...
+When = PostTransaction
+Exec = /usr/local/bin/rebuild-nvidia-p2p-driver.sh

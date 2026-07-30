@@ -1,0 +1,6 @@
+[Unit]
+Description=Check for aikitoria P2P patch updates
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/check-p2p-update.sh

@@ -1,0 +1,50 @@
+name: Bug Report
+description: Report a bug with the installer or patched modules
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please include all relevant info so we can reproduce.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the issue
+    validations:
+      required: true
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel version
+      description: Output of `uname -r`
+      placeholder: "7.1.5-1-cachyos"
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: NVIDIA driver version
+      description: Output of `nvidia-smi | grep Driver`
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU model
+      placeholder: "RTX 3090"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste output of `sudo ./install.sh` or `/var/log/nvidia-p2p-driver-rebuild.log`
+      render: shell
+  - type: textarea
+    id: topology
+    attributes:
+      label: GPU topology
+      description: Output of `nvidia-smi topo -m`
+      render: shell
