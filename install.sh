@@ -73,6 +73,13 @@ for BRANCH in $AIKIT_BRANCHES; do
 done
 [ -z "$LATEST_PATCH" ] && error "No aikitoria patch available for driver version ${INSTALLED_DRIVER}."
 
+# Version equality guard — refuse to install older patch against newer userspace
+if [ "$LATEST_PATCH" != "$INSTALLED_DRIVER" ]; then
+    error "aikitoria patch (${LATEST_PATCH}) does not match installed driver (${INSTALLED_DRIVER})."
+    error "Installing an older module against newer userspace causes NVML version mismatch on reboot."
+    error "Wait for aikitoria to release a patch for ${INSTALLED_DRIVER}."
+fi
+
 REPO_BRANCH="${LATEST_PATCH}-p2p"
 info "Using aikitoria patch: ${LATEST_PATCH} (branch: ${REPO_BRANCH})"
 
@@ -140,15 +147,17 @@ elif command -v mkinitcpio &>/dev/null; then
     done
 fi
 
-# --- Pin driver ---
-info "Pinning driver via IgnorePkg..."
+# --- Pin driver and userspace ---
+info "Pinning driver and userspace via IgnorePkg..."
 sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
 if grep -q "^IgnorePkg" /etc/pacman.conf; then
-    if ! grep -q "^IgnorePkg.*nvidia-open-dkms" /etc/pacman.conf; then
-        sed -i '0,/^IgnorePkg/{s/^IgnorePkg.*/& nvidia-open-dkms/}' /etc/pacman.conf
-    fi
+    for PKG in nvidia-open-dkms nvidia-utils nvidia-settings; do
+        if ! grep -q "^IgnorePkg.*${PKG}" /etc/pacman.conf; then
+            sed -i '0,/^IgnorePkg/{s/^IgnorePkg.*/& '${PKG}'/}' /etc/pacman.conf
+        fi
+    done
 else
-    sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms' /etc/pacman.conf
+    sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings' /etc/pacman.conf
 fi
 
 # --- Install pacman hook for auto-rebuild on driver upgrade ---
@@ -169,3 +178,7 @@ systemctl enable --now nvidia-p2p-check.timer
 
 info "Done. Reboot to load patched modules:"
 info "  sudo reboot"
+info ""
+info "After reboot, verify P2P is working:"
+info "  nvidia-smi topo -p2p r"
+info "  All pairs should show OK."

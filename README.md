@@ -25,6 +25,11 @@ Enables PCIe BAR1 P2P on consumer GPUs (RTX 3090, 4090, 5090) where NVLink is no
 - Git (`git`)
 - IOMMU passthrough: `amd_iommu=on iommu=pt` in kernel cmdline
 - Secure Boot disabled (or MOK key enrolled)
+- **Large BAR1 enabled on GPU firmware** — the patch maps the full VRAM aperture through BAR1. Cards whose VBIOS caps BAR1 at 256 MB will build cleanly but P2P will still fail. Check with:
+  ```bash
+  sudo lspci -vv -s <bus> | grep -A4 "Physical Resizable BAR"
+  ```
+  BAR 1 must show `supported: 32768 MiB` (or your GPU's VRAM size). If it tops out at 256 MB, you need a ReBAR-capable VBIOS from the board vendor first. Not rare on RTX 3090s.
 
 ## Install
 
@@ -64,6 +69,8 @@ Results (4x RTX 3090 with NVLink bridges 0<->2, 1<->3):
 | Cross-pair **without patch** (CPU) | ~11.3 GB/s | ~15.2 GB/s |
 
 The patch improves cross-pair bandwidth by ~2.3x unidirectional and ~3.4x bidirectional.
+
+> **Note:** These raw interconnect ratios don't directly translate to end-to-end inference speedups. Real workloads are memory-bound, not interconnect-bound. On 2×3090 TP=2 we measured ~+2% narrative / ~+9% code generation, and ~+19–22% on speculative decoding paths.
 
 ### Building p2pBandwidthLatencyTest
 
@@ -123,12 +130,22 @@ sudo reboot
 
 ### Cross-pair P2P still shows GNS
 
-Verify the patched module is actually loaded:
-```bash
-sudo cat /sys/module/nvidia/srcversion
-modinfo /lib/modules/$(uname -r)/updates/dkms/nvidia.ko.zst | grep srcversion
-```
-If they don't match, reboot.
+1. Verify the patched module is actually loaded:
+   ```bash
+   sudo cat /sys/module/nvidia/srcversion
+   modinfo /lib/modules/$(uname -r)/updates/dkms/nvidia.ko.zst | grep srcversion
+   ```
+   If they don't match, reboot.
+
+2. Check GPU firmware supports Large BAR1:
+   ```bash
+   sudo lspci -vv -s <bus> | grep -A4 "Physical Resizable BAR"
+   ```
+   BAR 1 must show `supported: 32768 MiB` (or your GPU's VRAM size). If it caps at 256 MB, you need a ReBAR-capable VBIOS from the board vendor. This is not rare on RTX 3090s.
+
+### "Custom allreduce is disabled" in vLLM logs
+
+This is expected on PCIe-only rigs (including pairwise NVLink bridges). vLLM's custom allreduce kernel requires a full NVLink mesh, which consumer GPUs don't provide. NCCL still uses P2P for all-reduce — that's where the bandwidth improvement comes from. On 2×3090 TP=2, expect ~+2% narrative / ~+9% code generation speedup.
 
 ## Uninstall
 
