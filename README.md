@@ -27,7 +27,10 @@ Enables PCIe BAR1 P2P on consumer GPUs (RTX 3090, 4090, 5090) where NVLink is no
 - Secure Boot disabled (or MOK key enrolled)
 - **Large BAR1 enabled on GPU firmware** — the patch maps the full VRAM aperture through BAR1. Cards whose VBIOS caps BAR1 at 256 MB will build cleanly but P2P will still fail. Check with:
   ```bash
-  sudo lspci -vv -s <bus> | grep -A4 "Physical Resizable BAR"
+  # First find your GPU bus ID:
+  lspci | grep -i vga
+  # Then check BAR1 size (replace 01:00.0 with your actual bus ID):
+  sudo lspci -vv -s 01:00.0 | grep -A4 "Physical Resizable BAR"
   ```
   BAR 1 must show `supported: 32768 MiB` (or your GPU's VRAM size). If it tops out at 256 MB, you need a ReBAR-capable VBIOS from the board vendor first. Not rare on RTX 3090s.
 
