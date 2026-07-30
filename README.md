@@ -55,14 +55,15 @@ nvidia-smi topo -p2p r
 /opt/cuda-samples/bin/p2pBandwidthLatencyTest
 ```
 
-Expected results (4x RTX 3090 with NVLink bridges 0<->2, 1<->3):
+Results (4x RTX 3090 with NVLink bridges 0<->2, 1<->3):
 
 | Pair type | Unidirectional | Bidirectional |
 |---|---|---|
 | NVLink (0<->2, 1<->3) | ~52.8 GB/s | ~101.7 GB/s |
-| Cross-pair BAR1 | ~26.1 GB/s | ~51.2 GB/s |
+| Cross-pair **with patch** (BAR1) | ~26.1 GB/s | ~51.2 GB/s |
+| Cross-pair **without patch** (CPU) | ~11.3 GB/s | ~15.2 GB/s |
 
-Without this patch, cross-pair falls back to CPU memcopy at ~11 GB/s.
+The patch improves cross-pair bandwidth by ~2.3x unidirectional and ~3.4x bidirectional.
 
 ### Building p2pBandwidthLatencyTest
 
