@@ -13,7 +13,7 @@ Enables PCIe BAR1 P2P on consumer GPUs (RTX 3090, 4090, 5090) where NVLink is no
 - Queries aikitoria's repo for the latest available P2P patch
 - Builds patched modules via DKMS for all installed kernels
 - Pins the driver via `IgnorePkg` so P2P is never lost on system upgrades
-- Pins `nvidia-open-dkms`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia`, and `lib32-opencl-nvidia` to prevent version mismatches
+- Pins `nvidia-open-dkms`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia`, `lib32-opencl-nvidia`, and `lib32-nvidia-utils` to prevent version mismatches
 - Installs a pacman hook that auto-rebuilds when aikitoria releases new patches
 - Installs a weekly systemd timer that checks for new patches
 

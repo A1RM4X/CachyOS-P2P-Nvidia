@@ -151,13 +151,13 @@ fi
 info "Pinning driver and userspace via IgnorePkg..."
 sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
 if grep -q "^IgnorePkg" /etc/pacman.conf; then
-    for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia; do
+    for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils; do
         if ! grep -q "^IgnorePkg.*${PKG}" /etc/pacman.conf; then
             sed -i '0,/^IgnorePkg/{s/^IgnorePkg.*/& '${PKG}'/}' /etc/pacman.conf
         fi
     done
 else
-    sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia' /etc/pacman.conf
+    sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils' /etc/pacman.conf
 fi
 
 # --- Install pacman hook for auto-rebuild on driver upgrade ---

@@ -29,13 +29,13 @@ if [ -z "$LATEST_PATCH" ]; then
     # Re-pin IgnorePkg so we don't keep getting updates without patches
     sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
     if grep -q "^IgnorePkg" /etc/pacman.conf; then
-        for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia; do
+        for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils; do
             if ! grep -q "^IgnorePkg.*${PKG}" /etc/pacman.conf; then
                 sed -i '0,/^IgnorePkg/{s/^IgnorePkg.*/& '${PKG}'/}' /etc/pacman.conf
             fi
         done
     else
-        sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia' /etc/pacman.conf
+        sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils' /etc/pacman.conf
     fi
     exit 0
 fi
@@ -45,13 +45,13 @@ if [ "$LATEST_PATCH" != "$NEW_VER" ]; then
     # Re-pin IgnorePkg
     sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
     if grep -q "^IgnorePkg" /etc/pacman.conf; then
-        for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia; do
+        for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils; do
             if ! grep -q "^IgnorePkg.*${PKG}" /etc/pacman.conf; then
                 sed -i '0,/^IgnorePkg/{s/^IgnorePkg.*/& '${PKG}'/}' /etc/pacman.conf
             fi
         done
     else
-        sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia' /etc/pacman.conf
+        sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils' /etc/pacman.conf
     fi
     exit 0
 fi
@@ -118,13 +118,13 @@ fi
 # Re-pin IgnorePkg
 sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
 if grep -q "^IgnorePkg" /etc/pacman.conf; then
-    for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia; do
+    for PKG in nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils; do
         if ! grep -q "^IgnorePkg.*${PKG}" /etc/pacman.conf; then
             sed -i '0,/^IgnorePkg/{s/^IgnorePkg.*/& '${PKG}'/}' /etc/pacman.conf
         fi
     done
 else
-    sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia' /etc/pacman.conf
+    sed -i '/^\[options\]/a IgnorePkg = nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-opencl-nvidia lib32-nvidia-utils' /etc/pacman.conf
 fi
 
 echo "[nvidia-p2p] Success. Reboot to load patched modules."

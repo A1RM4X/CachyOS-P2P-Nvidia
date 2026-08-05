@@ -17,7 +17,7 @@ sed -i 's/ *nvidia-open-dkms//g' /etc/pacman.conf
 sed -i 's/ *nvidia-utils//g' /etc/pacman.conf
 sed -i 's/ *nvidia-settings//g' /etc/pacman.conf
 sed -i 's/ *opencl-nvidia//g' /etc/pacman.conf
-sed -i 's/ *lib32-opencl-nvidia//g' /etc/pacman.conf
+sed -i 's/ *lib32-opencl-nvidia lib32-nvidia-utils//g' /etc/pacman.conf
 
 echo "[nvidia-p2p] Installing stock nvidia-open-dkms..."
 pacman -S --noconfirm --needed nvidia-open-dkms
