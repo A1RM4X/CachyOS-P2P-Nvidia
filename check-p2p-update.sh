@@ -59,6 +59,10 @@ echo "[nvidia-p2p] UPDATE AVAILABLE: ${INSTALLED_DRIVER} -> ${REPO_DRIVER}"
 echo "[nvidia-p2p] Removed IgnorePkg. Run 'pacman -Syu' to update."
 
 # Remove IgnorePkg so the next pacman -Syu will update the driver
-# Clean up commented lines and remove nvidia-open-dkms from active lines (preserving other packages)
+# Clean up commented lines and remove all pinned NVIDIA packages (preserving other packages)
 sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
 sed -i 's/ *nvidia-open-dkms//g' /etc/pacman.conf
+sed -i 's/ *nvidia-utils//g' /etc/pacman.conf
+sed -i 's/ *nvidia-settings//g' /etc/pacman.conf
+sed -i 's/ *opencl-nvidia//g' /etc/pacman.conf
+sed -i 's/ *lib32-opencl-nvidia//g' /etc/pacman.conf
