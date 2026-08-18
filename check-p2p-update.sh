@@ -3,10 +3,21 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/aikitoria/open-gpu-kernel-modules.git"
+MIRROR_DIR="/opt/nvidia-p2p-mirror"
 LOG="/var/log/nvidia-p2p-check.log"
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
+
+# --- Maintain local bare mirror (for pacman hooks that lack network) ---
+# Full clone (not shallow): shallow only fetches the default branch, missing all -p2p branches.
+if [ ! -d "$MIRROR_DIR" ]; then
+    echo "[nvidia-p2p] Creating local mirror at ${MIRROR_DIR}..."
+    git clone --bare "${REPO_URL}" "${MIRROR_DIR}"
+else
+    echo "[nvidia-p2p] Updating local mirror..."
+    git -C "${MIRROR_DIR}" fetch --all --prune
+fi
 
 # Use installed driver version, not repo version (IgnorePkg may block updates)
 INSTALLED_DRIVER=$(pacman -Q nvidia-open-dkms 2>/dev/null | awk '{print $2}' | sed 's/-[0-9]*$//')
@@ -31,7 +42,7 @@ else
 fi
 
 # Check if aikitoria has a patch for the newer driver
-AIKIT_BRANCHES=$(timeout 30 git ls-remote --heads "${REPO_URL}" 2>/dev/null | grep -oP 'refs/heads/\K[0-9]+\.[0-9]+\.[0-9]+-p2p' | sort -V | uniq || true)
+AIKIT_BRANCHES=$(timeout 30 git ls-remote --heads "${MIRROR_DIR}" 2>/dev/null | grep -oP 'refs/heads/\K[0-9]+\.[0-9]+\.[0-9]+-p2p' | sort -V | uniq || true)
 if [ -z "$AIKIT_BRANCHES" ]; then
     echo "[nvidia-p2p] ERROR: Could not query aikitoria branches"
     exit 1
