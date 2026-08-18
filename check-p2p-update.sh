@@ -23,7 +23,7 @@ if [ -z "$REPO_DRIVER" ]; then
 fi
 
 # Only check if the repo has a newer driver than what's installed
-if [ "$(printf '%s\n%s\n' "$REPO_DRIVER" "$INSTALLED_DRIVER" | sort -V | head -n1)" = "$REPO_DRIVER" ] && [ "$REPO_DRIVER" != "$INSTALLED_DRIVER" ]; then
+if [ "$(printf '%s\n%s\n' "$REPO_DRIVER" "$INSTALLED_DRIVER" | sort -V | head -n1)" = "$INSTALLED_DRIVER" ] && [ "$REPO_DRIVER" != "$INSTALLED_DRIVER" ]; then
     echo "[nvidia-p2p] CachyOS has newer driver (${REPO_DRIVER}) but we're on ${INSTALLED_DRIVER}"
 else
     echo "[nvidia-p2p] Already on latest CachyOS driver: ${INSTALLED_DRIVER}"
@@ -65,4 +65,5 @@ sed -i 's/ *nvidia-open-dkms//g' /etc/pacman.conf
 sed -i 's/ *nvidia-utils//g' /etc/pacman.conf
 sed -i 's/ *nvidia-settings//g' /etc/pacman.conf
 sed -i 's/ *opencl-nvidia//g' /etc/pacman.conf
-sed -i 's/ *lib32-opencl-nvidia lib32-nvidia-utils//g' /etc/pacman.conf
+sed -i 's/ *lib32-opencl-nvidia//g' /etc/pacman.conf
+sed -i 's/ *lib32-nvidia-utils//g' /etc/pacman.conf
