@@ -157,6 +157,18 @@ This is expected on PCIe-only rigs (including pairwise NVLink bridges). vLLM's c
 
 The patched driver breaks suspend/resume on some setups. If you need sleep functionality, revert to stock modules (`sudo ./uninstall.sh`) or keep the system running headless. This is a known limitation of the aikitoria patch, not the installer.
 
+## Update
+
+To refresh the installed scripts after pulling new fixes (no DKMS rebuild, no reboot needed):
+
+```bash
+cd CachyOS-P2P-Nvidia
+git pull
+sudo ./update.sh
+```
+
+This deploys updated `check-p2p-update.sh`, `rebuild-nvidia-p2p-driver.sh`, the pacman hook, and the systemd units — only touching files that actually changed. It does **not** rebuild modules or touch `IgnorePkg`. If a release bumped the driver version, follow with `sudo pacman -Syu && sudo reboot`.
+
 ## Uninstall
 
 ```bash
