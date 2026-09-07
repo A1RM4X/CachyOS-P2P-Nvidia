@@ -91,6 +91,23 @@ if [ -n "$STOCK_VER" ]; then
     rm -rf "/usr/src/nvidia-${STOCK_VER}"
 fi
 
+# --- Clean up stale 'nvidia-p2p' DKMS registrations ---
+# Early versions of this script registered modules under the name 'nvidia-p2p'
+# instead of 'nvidia'. Those leftover registrations are broken (unquoted MAKE
+# line -> /Kbuild error) and fail on every kernel update. Remove them.
+# dkms status lines look like:
+#   nvidia-p2p/610.43.03: added
+#   nvidia-p2p/610.43.03, 7.2.3-1-cachyos, x86_64: installed
+# so we take field 2, cut at the comma (kernel list), then strip the ": state" suffix.
+STALE_P2P=$(dkms status 2>/dev/null | grep "^nvidia-p2p/" | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' | sort -u)
+if [ -n "$STALE_P2P" ]; then
+    for SV in $STALE_P2P; do
+        info "Removing stale nvidia-p2p/${SV} DKMS registration..."
+        dkms remove "nvidia-p2p/${SV}" --all 2>/dev/null || true
+        rm -rf "/usr/src/nvidia-p2p-${SV}"
+    done
+fi
+
 # --- Clone aikitoria source ---
 DKMS_SRC="/usr/src/nvidia-${LATEST_PATCH}"
 info "Installing aikitoria source to ${DKMS_SRC}..."
