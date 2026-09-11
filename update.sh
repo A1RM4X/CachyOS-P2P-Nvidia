@@ -3,28 +3,27 @@
 # Use after `git pull` to deploy updated scripts to a system where
 # CachyOS-P2P-Nvidia was already installed. Safe: does NOT touch
 # kernel modules, IgnorePkg, or initramfs. Takes a few seconds.
+# Version: 1.1.0
 set -euo pipefail
 
-SCRIPT_DIR="/usr/local/bin"
+DEST_DIR="/usr/local/bin"
 HOOK_DIR="/usr/share/libalpm/hooks"
-REPO_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[nvidia-p2p]${NC} $*"; }
 error() { echo -e "${RED}[nvidia-p2p]${NC} $*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || error "Run with sudo"
 
 # --- Sanity: running from a valid repo checkout? ---
-for F in check-p2p-update.sh rebuild-nvidia-p2p-driver.sh \
+for F in p2p-lib.sh check-p2p-update.sh rebuild-nvidia-p2p-driver.sh \
          99-nvidia-p2p-driver.hook nvidia-p2p-check.service nvidia-p2p-check.timer; do
-    [ -f "${REPO_PATH}/${F}" ] || error "Missing ${F}. Run this from the CachyOS-P2P-Nvidia repo root."
+    [ -f "${SCRIPT_DIR}/${F}" ] || error "Missing ${F}. Run this from the CachyOS-P2P-Nvidia repo root."
 done
 
 # --- Only proceed if previously installed ---
-if [ ! -f "${SCRIPT_DIR}/check-p2p-update.sh" ] && [ ! -f "${SCRIPT_DIR}/rebuild-nvidia-p2p-driver.sh" ]; then
+if [ ! -f "${DEST_DIR}/check-p2p-update.sh" ] && [ ! -f "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh" ]; then
     error "CachyOS-P2P-Nvidia doesn't appear to be installed. Run install.sh instead."
 fi
 
@@ -38,13 +37,16 @@ deploy() {
     fi
 }
 
-deploy "${REPO_PATH}/check-p2p-update.sh"            "${SCRIPT_DIR}/check-p2p-update.sh"
-deploy "${REPO_PATH}/rebuild-nvidia-p2p-driver.sh"   "${SCRIPT_DIR}/rebuild-nvidia-p2p-driver.sh"
-deploy "${REPO_PATH}/99-nvidia-p2p-driver.hook"      "${HOOK_DIR}/99-nvidia-p2p-driver.hook"
-deploy "${REPO_PATH}/nvidia-p2p-check.service"       "/etc/systemd/system/nvidia-p2p-check.service"
-deploy "${REPO_PATH}/nvidia-p2p-check.timer"         "/etc/systemd/system/nvidia-p2p-check.timer"
+deploy "${SCRIPT_DIR}/p2p-lib.sh"                   "${DEST_DIR}/p2p-lib.sh"
+deploy "${SCRIPT_DIR}/check-p2p-update.sh"         "${DEST_DIR}/check-p2p-update.sh"
+deploy "${SCRIPT_DIR}/rebuild-nvidia-p2p-driver.sh" "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh"
+deploy "${SCRIPT_DIR}/verify.sh"                    "${DEST_DIR}/verify.sh"
+deploy "${SCRIPT_DIR}/99-nvidia-p2p-driver.hook"    "${HOOK_DIR}/99-nvidia-p2p-driver.hook"
+deploy "${SCRIPT_DIR}/logrotate.conf"               "/etc/logrotate.d/nvidia-p2p.conf"
+deploy "${SCRIPT_DIR}/nvidia-p2p-check.service"     "/etc/systemd/system/nvidia-p2p-check.service"
+deploy "${SCRIPT_DIR}/nvidia-p2p-check.timer"        "/etc/systemd/system/nvidia-p2p-check.timer"
 
-chmod +x "${SCRIPT_DIR}/check-p2p-update.sh" "${SCRIPT_DIR}/rebuild-nvidia-p2p-driver.sh"
+chmod +x "${DEST_DIR}/check-p2p-update.sh" "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh" "${DEST_DIR}/verify.sh"
 
 # --- Reload systemd (always, so enabled/started state is current) ---
 systemctl daemon-reload
@@ -61,4 +63,4 @@ else
 fi
 
 info "Done. No reboot needed (DKMS modules were not touched)."
-info "If a new version bumped the driver, run: sudo pacman -Syu && sudo reboot"
+info "If a release bumped the driver, follow with: sudo pacman -Syu && sudo reboot"

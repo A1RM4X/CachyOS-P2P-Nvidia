@@ -1,80 +1,71 @@
 #!/bin/bash
 # check-p2p-update.sh - Check for new aikitoria P2P patches
+# Run weekly by the nvidia-p2p-check.timer systemd unit.
 set -euo pipefail
 
-REPO_URL="https://github.com/aikitoria/open-gpu-kernel-modules.git"
-MIRROR_DIR="/opt/nvidia-p2p-mirror"
-LOG="/var/log/nvidia-p2p-check.log"
+# Shared helpers (patch discovery, IgnorePkg handling).
+if [ -f "/usr/local/bin/p2p-lib.sh" ]; then
+    # shellcheck source=/dev/null
+    source /usr/local/bin/p2p-lib.sh
+else
+    echo "[nvidia-p2p] ERROR: p2p-lib.sh not found (expected at /usr/local/bin/p2p-lib.sh)" >&2
+    exit 1
+fi
 
+LOG="/var/log/nvidia-p2p-check.log"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
 
 # --- Maintain local bare mirror (for pacman hooks that lack network) ---
-# Full clone (not shallow): shallow only fetches the default branch, missing all -p2p branches.
+# Full clone (not shallow): a shallow clone only fetches the default branch,
+# missing all the -p2p version branches we need.
 if [ ! -d "$MIRROR_DIR" ]; then
     echo "[nvidia-p2p] Creating local mirror at ${MIRROR_DIR}..."
-    git clone --bare "${REPO_URL}" "${MIRROR_DIR}"
+    git clone --bare "${AIKIT_REPO_URL}" "${MIRROR_DIR}"
 else
     echo "[nvidia-p2p] Updating local mirror..."
     git -C "${MIRROR_DIR}" fetch --all --prune
 fi
 
-# Use installed driver version, not repo version (IgnorePkg may block updates)
+# Use installed driver version, not repo version (IgnorePkg may block updates).
 INSTALLED_DRIVER=$(pacman -Q nvidia-open-dkms 2>/dev/null | awk '{print $2}' | sed 's/-[0-9]*$//')
 if [ -z "$INSTALLED_DRIVER" ]; then
     echo "[nvidia-p2p] ERROR: nvidia-open-dkms is not installed"
     exit 1
 fi
 
-# Check if CachyOS repo has a newer driver
+# Check if the CachyOS repo has a newer driver than what's installed.
 REPO_DRIVER=$(pacman -Si nvidia-open-dkms 2>/dev/null | grep -m1 "^Version" | awk '{print $3}' | sed 's/-[0-9]*$//')
 if [ -z "$REPO_DRIVER" ]; then
     echo "[nvidia-p2p] ERROR: Could not query CachyOS repo"
     exit 1
 fi
 
-# Only check if the repo has a newer driver than what's installed
-if [ "$(printf '%s\n%s\n' "$REPO_DRIVER" "$INSTALLED_DRIVER" | sort -V | head -n1)" = "$INSTALLED_DRIVER" ] && [ "$REPO_DRIVER" != "$INSTALLED_DRIVER" ]; then
-    echo "[nvidia-p2p] CachyOS has newer driver (${REPO_DRIVER}) but we're on ${INSTALLED_DRIVER}"
-else
+if [ "$REPO_DRIVER" = "$INSTALLED_DRIVER" ]; then
     echo "[nvidia-p2p] Already on latest CachyOS driver: ${INSTALLED_DRIVER}"
     exit 0
 fi
-
-# Check if aikitoria has a patch for the newer driver
-AIKIT_BRANCHES=$(timeout 30 git ls-remote --heads "${MIRROR_DIR}" 2>/dev/null | grep -oP 'refs/heads/\K[0-9]+\.[0-9]+\.[0-9]+-p2p' | sort -V | uniq || true)
-if [ -z "$AIKIT_BRANCHES" ]; then
-    echo "[nvidia-p2p] ERROR: Could not query aikitoria branches"
-    exit 1
+# Proceed only if the repo driver is NEWER than what's installed. If the
+# installed one is the smaller of the two, we're already ahead of the repo.
+if [ "$(printf '%s\n%s\n' "$REPO_DRIVER" "$INSTALLED_DRIVER" | sort -V | head -n1)" != "$INSTALLED_DRIVER" ]; then
+    echo "[nvidia-p2p] Installed driver (${INSTALLED_DRIVER}) is newer than repo (${REPO_DRIVER}); nothing to do."
+    exit 0
 fi
+echo "[nvidia-p2p] CachyOS has newer driver (${REPO_DRIVER}) but we're on ${INSTALLED_DRIVER}"
 
-LATEST_PATCH=""
-for BRANCH in $AIKIT_BRANCHES; do
-    PATCH_VER=$(echo "$BRANCH" | sed 's/-p2p$//')
-    if [ "$(printf '%s\n%s\n' "$REPO_DRIVER" "$PATCH_VER" | sort -V | head -n1)" = "$PATCH_VER" ]; then
-        LATEST_PATCH="$PATCH_VER"
-    fi
-done
-
+# Does aikitoria have a patch for the newer driver?
+LATEST_PATCH=$(find_latest_patch "$REPO_DRIVER" "$MIRROR_DIR" || true)
 if [ -z "$LATEST_PATCH" ]; then
     echo "[nvidia-p2p] No aikitoria patch available for driver ${REPO_DRIVER}"
     exit 0
 fi
-
 if [ "$LATEST_PATCH" != "$REPO_DRIVER" ]; then
     echo "[nvidia-p2p] aikitoria patch (${LATEST_PATCH}) does not match repo driver (${REPO_DRIVER})"
     exit 0
 fi
 
+# A matching patch exists: let the next `pacman -Syu` pull the new driver.
+# The pacman hook will then rebuild the patched modules automatically.
 echo "[nvidia-p2p] UPDATE AVAILABLE: ${INSTALLED_DRIVER} -> ${REPO_DRIVER}"
-echo "[nvidia-p2p] Removed IgnorePkg. Run 'pacman -Syu' to update."
-
-# Remove IgnorePkg so the next pacman -Syu will update the driver
-# Clean up commented lines and remove all pinned NVIDIA packages (preserving other packages)
-sed -i '/^#.*IgnorePkg.*nvidia-open-dkms/d' /etc/pacman.conf
-sed -i 's/ *nvidia-open-dkms//g' /etc/pacman.conf
-sed -i 's/ *nvidia-utils//g' /etc/pacman.conf
-sed -i 's/ *nvidia-settings//g' /etc/pacman.conf
-sed -i 's/ *opencl-nvidia//g' /etc/pacman.conf
-sed -i 's/ *lib32-opencl-nvidia//g' /etc/pacman.conf
-sed -i 's/ *lib32-nvidia-utils//g' /etc/pacman.conf
+echo "[nvidia-p2p] Removing IgnorePkg. Run 'pacman -Syu' to update."
+unpin_p2p_packages

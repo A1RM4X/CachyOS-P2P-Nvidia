@@ -16,6 +16,8 @@ Enables PCIe BAR1 P2P on consumer GPUs (RTX 3090, 4090, 5090) where NVLink is no
 - Pins `nvidia-open-dkms`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia`, `lib32-opencl-nvidia`, and `lib32-nvidia-utils` to prevent version mismatches
 - Installs a pacman hook that auto-rebuilds when aikitoria releases new patches
 - Installs a weekly systemd timer that checks for new patches
+- Ships a `verify.sh` one-shot check that proves P2P is actually engaged
+- Guards the DKMS build with a lock (no two concurrent builds) and rotates its logs
 
 ## Requirements
 
@@ -46,14 +48,24 @@ sudo reboot
 
 ## Verify
 
-```bash
-# Check patched module is loaded
-sudo cat /sys/module/nvidia/srcversion
-# Cross-reference with on-disk module:
-modinfo /lib/modules/$(uname -r)/updates/dkms/nvidia.ko.zst | grep srcversion
-# Both should match.
+Run the one-shot check after every reboot (and after any driver/kernel update + reboot):
 
-# Check P2P topology
+```bash
+sudo ./verify.sh
+```
+
+It proves the patch is actually in use — the patched module is byte-identical in
+metadata to the stock one, so "the module is loaded" alone doesn't prove P2P.
+It checks, in order:
+
+1. `nvidia-smi` works (module + userspace in sync)
+2. the loaded module's `srcversion` matches the on-disk patched module
+3. `nvidia-smi topo -p2p r` reports `OK` on every peer pair (any `GNS`/`CNS`/`DR` fails)
+
+Exit code is `0` on success, `1` if any check fails. If you just want the raw
+topology:
+
+```bash
 nvidia-smi topo -p2p r
 # All pairs should show OK (NVLink pairs) or OK (cross-pair via BAR1)
 ```
