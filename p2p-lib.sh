@@ -44,7 +44,7 @@ _ignorepkg_set() {  # $1 = space-delimited tokens (may be empty -> drop the line
         | grep -E '^[A-Za-z0-9._+@-]+$' | grep -Ev -- '-$' | awk '!seen[$0]++' \
         | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/ +$//' || true)
     local existing
-    existing=$(grep -nE '^IgnorePkg' "$PACMAN_CONF" | head -n1 | cut -d: -f1)
+    existing=$(grep -nE '^IgnorePkg' "$PACMAN_CONF" | head -n1 | cut -d: -f1 || true)
     if [ -z "$tokens" ]; then
         # No valid tokens left: an empty IgnorePkg line is meaningless, remove it.
         [ -n "$existing" ] && sed -i "${existing}d" "$PACMAN_CONF"
