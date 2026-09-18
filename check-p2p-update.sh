@@ -24,7 +24,10 @@ if [ ! -d "$MIRROR_DIR" ]; then
     git clone --bare "${AIKIT_REPO_URL}" "${MIRROR_DIR}"
 else
     echo "[nvidia-p2p] Updating local mirror..."
-    git -C "${MIRROR_DIR}" fetch --all --prune
+    # Explicit refspec: in a bare repo 'git fetch --all' only updates
+    # FETCH_HEAD, leaving refs/heads/* (what 'git ls-remote --heads' reads)
+    # stale, so newly released branches would be missed until a re-clone.
+    git -C "${MIRROR_DIR}" fetch origin '+refs/heads/*:refs/heads/*' --prune
 fi
 
 # Use installed driver version, not repo version (IgnorePkg may block updates).

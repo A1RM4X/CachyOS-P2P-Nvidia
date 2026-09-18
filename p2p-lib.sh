@@ -27,7 +27,7 @@ PINNED_PKGS="nvidia-open-dkms nvidia-utils nvidia-settings opencl-nvidia lib32-o
 # Print the package tokens on the first active IgnorePkg line (space-delimited).
 _ignorepkg_tokens() {
     local line
-    line=$(grep -E '^IgnorePkg' "$PACMAN_CONF" | head -n1)
+    line=$(grep -E '^IgnorePkg' "$PACMAN_CONF" | head -n1 || true)
     [ -z "$line" ] && return 0
     # Drop the directive name and '='; collapse whitespace.
     echo "$line" | sed -E 's/^IgnorePkg[[:space:]]*=?[[:space:]]*//; s/[[:space:]]+/ /g; s/ +$//'
@@ -42,7 +42,7 @@ _ignorepkg_set() {  # $1 = space-delimited tokens (may be empty -> drop the line
     # self-heals any legacy junk that ended up on the IgnorePkg line.
     tokens=$(printf '%s' "$1" | tr ' ' '\n' \
         | grep -E '^[A-Za-z0-9._+@-]+$' | grep -Ev -- '-$' | awk '!seen[$0]++' \
-        | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/ +$//')
+        | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/ +$//' || true)
     local existing
     existing=$(grep -nE '^IgnorePkg' "$PACMAN_CONF" | head -n1 | cut -d: -f1)
     if [ -z "$tokens" ]; then
