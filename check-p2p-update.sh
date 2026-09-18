@@ -38,7 +38,7 @@ if [ -z "$INSTALLED_DRIVER" ]; then
 fi
 
 # Check if the CachyOS repo has a newer driver than what's installed.
-REPO_DRIVER=$(pacman -Si nvidia-open-dkms 2>/dev/null | grep -m1 "^Version" | awk '{print $3}' | sed 's/-[0-9]*$//')
+REPO_DRIVER=$(pacman -Si nvidia-open-dkms 2>/dev/null | grep -m1 "^Version" | awk '{print $3}' | sed 's/-[0-9]*$//' || true)
 if [ -z "$REPO_DRIVER" ]; then
     echo "[nvidia-p2p] ERROR: Could not query CachyOS repo"
     exit 1
