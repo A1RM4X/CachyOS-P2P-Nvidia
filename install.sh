@@ -43,12 +43,16 @@ fi
 
 # --- Secure Boot check ---
 if [ -f /sys/firmware/efi/efivars ] && command -v mokutil &>/dev/null; then
-    if mokutil --sb-state 2>/dev/null | grep -qi "enabled"; then
+    MOK_STATE=$(mokutil --sb-state 2>/dev/null || true)
+    case "$MOK_STATE" in
+        *[Ee]nabled*)
         warn "Secure Boot is enabled. DKMS modules may fail to load."
         warn "Either disable Secure Boot or enroll the MOK key when prompted."
         read -rp "Continue anyway? [y/N] " -r
+        # shellcheck disable=SC2317  # error() invoked on the false-branch of [[ ]]
         [[ $REPLY =~ ^[Yy]$ ]] || error "Aborted"
-    fi
+        ;;
+    esac
 fi
 
 # --- IOMMU passthrough check ---
@@ -56,6 +60,7 @@ if ! grep -q "iommu=pt" /proc/cmdline; then
     warn "IOMMU passthrough not detected in kernel cmdline."
     warn "Add 'amd_iommu=on iommu=pt' to your bootloader config."
     read -rp "Continue anyway? [y/N] " -r
+    # shellcheck disable=SC2317  # error() invoked on the false-branch of [[ ]]
     [[ $REPLY =~ ^[Yy]$ ]] || error "Aborted"
 fi
 
@@ -132,11 +137,12 @@ done
 # --- Regenerate initramfs ---
 info "Regenerating initramfs..."
 if command -v limine-mkinitcpio &>/dev/null; then
-    for KDIR in /lib/modules/*-cachyos*; do
-        KERNEL=$(basename "$KDIR")
-        [ -d "${KDIR}/build" ] && limine-mkinitcpio "${KERNEL}"
-    done
+    # limine-mkinitcpio ignores its kernel argument and rebuilds initramfs for
+    # EVERY installed kernel, so a single call is enough (looping over kernels
+    # made each iteration re-do the full N-kernel rebuild -> N^2).
+    limine-mkinitcpio
 elif command -v mkinitcpio &>/dev/null; then
+    # mkinitcpio DOES honor -k, so rebuild each CachyOS kernel individually.
     for KDIR in /lib/modules/*-cachyos*; do
         KERNEL=$(basename "$KDIR")
         [ -d "${KDIR}/build" ] && mkinitcpio -k "${KERNEL}"

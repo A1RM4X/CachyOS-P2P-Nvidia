@@ -1,6 +1,15 @@
 [Unit]
 Description=Check for aikitoria P2P patch updates
+# The timer can fire right after boot (Persistent=true), possibly before the
+# network is up. Wait for a working connection so the first mirror clone /
+# fetch doesn't fail and leave a broken repo.
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=oneshot
+# First run does a full non-shallow clone of a large repo; that can exceed the
+# default 90s DefaultTimeoutStartSec, which would kill it mid-clone and leave a
+# partial mirror. Don't time this out.
+TimeoutStartSec=infinity
 ExecStart=/usr/local/bin/check-p2p-update.sh

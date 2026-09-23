@@ -19,15 +19,40 @@ echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
 # --- Maintain local bare mirror (for pacman hooks that lack network) ---
 # Full clone (not shallow): a shallow clone only fetches the default branch,
 # missing all the -p2p version branches we need.
-if [ ! -d "$MIRROR_DIR" ]; then
+# A mirror is "valid" if git can resolve HEAD against it (catches a partial
+# clone left by an interrupted first run).
+mirror_valid() {
+    [ -d "$MIRROR_DIR" ] && git -C "$MIRROR_DIR" rev-parse --verify --quiet HEAD >/dev/null 2>&1
+}
+
+# Create the mirror by cloning into a temp dir and mv'ing it into place, so an
+# interrupted/timed-out clone can't leave a half-written repo where the real
+# one goes (which would break every later fetch and the rebuild hook's clone).
+create_mirror() {
+    local tmp
+    tmp=$(mktemp -d "${MIRROR_DIR}.XXXXXX")
+    if git clone --bare "${AIKIT_REPO_URL}" "${tmp}" >/dev/null 2>&1; then
+        rm -rf "${MIRROR_DIR}"
+        mv "${tmp}" "${MIRROR_DIR}"
+    else
+        rm -rf "${tmp}"
+        return 1
+    fi
+}
+
+if ! mirror_valid; then
     echo "[nvidia-p2p] Creating local mirror at ${MIRROR_DIR}..."
-    git clone --bare "${AIKIT_REPO_URL}" "${MIRROR_DIR}"
+    create_mirror || { echo "[nvidia-p2p] ERROR: could not clone mirror"; exit 1; }
 else
     echo "[nvidia-p2p] Updating local mirror..."
     # Explicit refspec: in a bare repo 'git fetch --all' only updates
     # FETCH_HEAD, leaving refs/heads/* (what 'git ls-remote --heads' reads)
     # stale, so newly released branches would be missed until a re-clone.
-    git -C "${MIRROR_DIR}" fetch origin '+refs/heads/*:refs/heads/*' --prune
+    if ! git -C "${MIRROR_DIR}" fetch origin '+refs/heads/*:refs/heads/*' --prune 2>&1; then
+        # Fetch failed (network / corrupt repo). Try a clean re-clone once.
+        echo "[nvidia-p2p] Fetch failed; re-cloning mirror..."
+        create_mirror || { echo "[nvidia-p2p] WARNING: mirror still invalid; using cached state"; }
+    fi
 fi
 
 # Use installed driver version, not repo version (IgnorePkg may block updates).
@@ -38,6 +63,11 @@ if [ -z "$INSTALLED_DRIVER" ]; then
 fi
 
 # Check if the CachyOS repo has a newer driver than what's installed.
+# Refresh the DB first (this script runs via the timer with no user in front of
+# a fresh 'pacman -Sy'): a stale local DB would give a wrong version and could
+# silently skip a real update.
+pacman -Sy --noconfirm nvidia-open-dkms >/dev/null 2>&1 || true
+# shellcheck disable=SC2337  # '|| true' contains the grep -m1 SIGPIPE
 REPO_DRIVER=$(pacman -Si nvidia-open-dkms 2>/dev/null | grep -m1 "^Version" | awk '{print $3}' | sed 's/-[0-9]*$//' || true)
 if [ -z "$REPO_DRIVER" ]; then
     echo "[nvidia-p2p] ERROR: Could not query CachyOS repo"

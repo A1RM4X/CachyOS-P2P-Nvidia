@@ -90,11 +90,12 @@ fi
 
 # Regenerate initramfs.
 if command -v limine-mkinitcpio &>/dev/null; then
-    for KDIR in /lib/modules/*-cachyos*; do
-        KERNEL=$(basename "$KDIR")
-        [ -d "${KDIR}/build" ] && limine-mkinitcpio "${KERNEL}"
-    done
+    # limine-mkinitcpio ignores its kernel argument and rebuilds initramfs for
+    # EVERY installed kernel, so a single call is enough (looping over kernels
+    # made each iteration re-do the full N-kernel rebuild -> N^2).
+    limine-mkinitcpio
 elif command -v mkinitcpio &>/dev/null; then
+    # mkinitcpio DOES honor -k, so rebuild each CachyOS kernel individually.
     for KDIR in /lib/modules/*-cachyos*; do
         KERNEL=$(basename "$KDIR")
         [ -d "${KDIR}/build" ] && mkinitcpio -k "${KERNEL}"

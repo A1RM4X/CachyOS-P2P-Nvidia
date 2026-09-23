@@ -26,6 +26,7 @@ Enables PCIe BAR1 P2P on consumer GPUs (RTX 3090, 4090, 5090) where NVLink is no
 - Clang + LLD toolchain (`clang`, `lld`)
 - DKMS (`dkms`)
 - Git (`git`)
+- zstd (`zstd`) — `verify.sh` reads `.zst`-compressed modules via `unzstd`
 - IOMMU passthrough: `amd_iommu=on iommu=pt` in kernel cmdline
 - Secure Boot disabled (or MOK key enrolled)
 - **Large BAR1 enabled on GPU firmware** — the patch maps the full VRAM aperture through BAR1. Cards whose VBIOS caps BAR1 at 256 MB will build cleanly but P2P will still fail. Check with:
@@ -62,7 +63,11 @@ It checks, in order:
 2. the loaded module's `srcversion` matches the on-disk patched module
 3. `nvidia-smi topo -p2p r` reports `OK` on every peer pair (any `GNS`/`CNS`/`DR` fails)
 
-Exit code is `0` on success, `1` if any check fails. If you just want the raw
+Exit code is `0` on success, `1` if any check fails.
+
+Check 3 proves the driver **grants peer access** (topology level). It does not
+exercise an actual NCCL/vLLM collective, which can still fail for unrelated
+reasons. For real bandwidth, build and run [`p2pBandwidthLatencyTest`](#building-p2pbandwidthlatencytest). If you just want the raw
 topology:
 
 ```bash

@@ -43,9 +43,15 @@ if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     INSTALLED_LINUX=$(pacman -Qq 2>/dev/null | grep -E '^linux-' || true)
     for KD in /lib/modules/*-cachyos*; do
         KERNEL=$(basename "$KD")
+        # Identify the package that owns this kernel's vmlinuz. Matching any
+        # path under the module dir is ambiguous: the *-headers package also
+        # ships /usr/lib/modules/<K>/build/, so a grep for the module dir would
+        # match it too (and in pacman -Qq order it can win, producing a bogus
+        # 'linux-<...>-headers-nvidia-open' that doesn't exist). Only the
+        # kernel package owns vmlinuz.
         OWNER=""
         for P in $INSTALLED_LINUX; do
-            if pacman -Ql "$P" 2>/dev/null | grep -q "/usr/lib/modules/${KERNEL}/"; then
+            if [ -n "$(pacman -Ql "$P" 2>/dev/null | grep "/usr/lib/modules/${KERNEL}/vmlinuz")" ]; then
                 OWNER="$P"; break
             fi
         done

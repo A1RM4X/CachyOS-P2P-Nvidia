@@ -9,14 +9,18 @@
 #   1. nvidia-smi works (module + userspace in sync)
 #   2. the loaded module's srcversion == the on-disk patched module's
 #   3. nvidia-smi topo -p2p r reports OK on every peer pair
-# Version: 1.1.0
+#
+# Note: this proves the driver GRANTS peer access (topology level). It does not
+# exercise an actual NCCL/vLLM collective, which can still fail for other
+# reasons. For bandwidth, run p2pBandwidthLatencyTest.
+# Version: 1.2.0
 set -uo pipefail
 
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}[ok]${NC}   $*"; }
 bad()  { echo -e "${RED}[fail]${NC} $*"; }
 warn() { echo -e "${YELLOW}[warn]${NC} $*"; }
-step() { echo -e "\n${GREEN}== $* =="${NC}; }
+step() { echo -e "\n${GREEN}== $* ==" "${NC}"; }
 
 fail=0
 
@@ -99,15 +103,22 @@ if TOP=$(nvidia-smi topo -p2p r 2>&1); then
     GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
     if [ "${GPUS:-0}" -lt 2 ]; then
         warn "Only ${GPUS:-0} GPU(s) visible; P2P topology is only meaningful with 2+."
-    elif echo "$MATRIX" | awk -F '\t' '
-        NF<2 { next }
-        !hdr { hdr=1; next }
-        { for (i=2; i<=NF; i++) { c=$i; gsub(/[[:space:]]/,"",c);
-          if (c!="" && c!="X" && c!="OK") bad=1 } }
+    # nvidia-smi aligns the matrix with tabs or with spaces depending on the
+    # driver version / locale, so use default whitespace splitting (NOT -F'\t',
+    # which would collapse a space-aligned matrix to one field and always pass).
+    # A data row has a self "X" cell; the column-header row does not, so that's
+    # how we skip it regardless of delimiter.
+    elif echo "$MATRIX" | awk '
+        $1 ~ /^GPU[0-9]+$/ {
+            hasX=0; for (i=2; i<=NF; i++) if ($i=="X") hasX=1
+            if (!hasX) next
+            for (i=2; i<=NF; i++) { c=$i; gsub(/[[:space:]]/,"",c);
+                if (c!="" && c!="X" && c!="OK") bad=1 }
+        }
         END { exit bad }'; then
-        ok "Peer access reports OK on all pairs."
+        ok "Driver permits peer access on all pairs (topology level)."
     else
-        bad "Some GPU pair reports no peer access (GNS/CNS/DR/...). P2P is NOT fully engaged."
+        bad "Some GPU pair reports no peer access (GNS/CNS/DR/...). P2P is NOT granted."
         fail=1
     fi
 else
@@ -118,8 +129,8 @@ fi
 
 echo ""
 if [ "$fail" -eq 0 ]; then
-    echo -e "${GREEN}PASS${NC} - The P2P-patched driver appears to be fully in use."
+    echo -e "${GREEN}PASS${NC} - Patched driver in use: nvidia-smi OK, module srcversion matches, peer access granted on all pairs (topology level)."
 else
-    echo -e "${RED}FAIL${NC} - P2P does NOT appear to be fully engaged. See the failures above."
+    echo -e "${RED}FAIL${NC} - P2P does NOT appear to be fully in use. See the failures above."
 fi
 exit "$fail"

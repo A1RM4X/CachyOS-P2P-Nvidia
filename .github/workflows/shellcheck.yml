@@ -1,0 +1,31 @@
+name: Shell lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shellcheck:
+    name: bash -n + shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Syntax check every shell script (bash -n)
+        run: |
+          fail=0
+          for f in *.sh; do
+            bash -n "$f" || { echo "SYNTAX FAIL: $f"; fail=1; }
+          done
+          exit "$fail"
+
+      # shellcheck catches the class of bugs that bit us under set -euo
+      # pipefail (unguarded command substitutions, SIGPIPE in pipelines, etc).
+      # --severity=warning: real bugs fail the build; style/info noise is ignored.
+      - name: shellcheck (warnings fail the build)
+        run: |
+          shellcheck -x -s bash --severity=warning *.sh
