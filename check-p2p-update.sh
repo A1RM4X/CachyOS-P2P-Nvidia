@@ -63,10 +63,11 @@ if [ -z "$INSTALLED_DRIVER" ]; then
 fi
 
 # Check if the CachyOS repo has a newer driver than what's installed.
-# Refresh the DB first (this script runs via the timer with no user in front of
-# a fresh 'pacman -Sy'): a stale local DB would give a wrong version and could
-# silently skip a real update.
-pacman -Sy --noconfirm nvidia-open-dkms >/dev/null 2>&1 || true
+# Refresh the repo DBs (no package arg): 'pacman -S <pkg>' is a sync/upgrade
+# op, and IgnorePkg only protects --sysupgrade, so a bare '-S nvidia-open-dkms'
+# would UPGRADE the driver (defeating the pin) whenever the repo is ahead.
+# '-Sy' with no target only downloads the .db files - small, no packages touched.
+pacman -Sy --noconfirm >/dev/null 2>&1 || true
 # shellcheck disable=SC2337  # '|| true' contains the grep -m1 SIGPIPE
 REPO_DRIVER=$(pacman -Si nvidia-open-dkms 2>/dev/null | grep -m1 "^Version" | awk '{print $3}' | sed 's/-[0-9]*$//' || true)
 if [ -z "$REPO_DRIVER" ]; then
