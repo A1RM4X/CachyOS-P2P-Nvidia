@@ -220,6 +220,33 @@ sudo reboot
 
 Removes patched modules, pacman hooks, systemd timer, and restores stock `nvidia-open-dkms`. Optionally switches back to CachyOS pre-built driver.
 
+## Optional: GPU Unlock (RTX 30-series FP/BF16 issue rate)
+
+`install.sh` offers, on systems with GA10x cards (RTX 3090/3090 Ti/3080/3070/3060), an optional step that installs [Zagitta/gpu-unlock](https://github.com/Zagitta/gpu-unlock): an early kernel module that unlocks the FP16/BF16 (and TF32) instruction issue rate to professional-card levels, running **before** the NVIDIA driver binds the card. It does not flash or modify VBIOS, and the P2P patch is unaffected — the two stack.
+
+Expected effect (GA102, from gpu-unlock's 3090 Ti measurements): FP16 ~87→118 TFLOPS, BF16 ~87→157 TFLOPS, TF32 ~42→82 TFLOPS.
+
+```bash
+# Standalone (or say yes to the prompt during install.sh)
+sudo ./unlock-ga100.sh
+sudo reboot
+
+# Verify after reboot
+grep gpu_unlock /proc/cmdline          # opt-in present
+journalctl -k -b | grep -i gpu_unlock # unlock lines, one per card
+
+# Revert at any time
+sudo ./unlock-ga100.sh --remove
+sudo reboot
+```
+
+Notes:
+
+- Opt-in is the kernel parameter `gpu_unlock.targets=all`, written by the script to a Limine drop-in (`/etc/limine-entry-tool.d/gpu-unlock.conf`). Without it the module is inert.
+- The script also installs `zz-p2p-gpu-unlock.conf` (mkinitcpio drop-in): it strips the early nvidia stack (CachyOS chwd adds it for the early KMS console), keeps a single plain `gpu_unlock` entry, and blocks nvidia from loading inside the initramfs so it cannot race the unlock. nvidia loads normally after the root switch. While installed, early boot shows the plain framebuffer instead of the chwd console; the normal console appears once the driver loads.
+- Cards that are not GA102/GA103/GA104/GA106 (e.g. RTX 40/50-series) are skipped — no benefit, no harm.
+- If a card's firmware never stops, the module logs it and keeps the card usable; power off (not just reboot) before retrying.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

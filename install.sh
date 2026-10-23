@@ -188,6 +188,18 @@ chmod +x "${DEST_DIR}/check-p2p-update.sh"
 systemctl daemon-reload
 systemctl enable --now nvidia-p2p-check.timer nvidia-p2p-bootcheck.timer
 
+# --- Optional: GA10x (RTX 30-series) FP/BF16 issue-rate unlock ---
+# Separate script (no shared state); a failure here must not fail the P2P
+# install, which is already complete.
+if command -v lspci &>/dev/null && lspci -nn 2>/dev/null | grep -q 'GA10[2346] \['; then
+    info "RTX 30-series (GA10x) card(s) detected."
+    read -rp "Unlock FP/BF16 issue rate with gpu-unlock (optional)? [y/N] " -r
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        "${SCRIPT_DIR}/unlock-ga100.sh" \
+            || warn "gpu-unlock setup failed (see above); P2P install is still complete. Retry: sudo ./unlock-ga100.sh"
+    fi
+fi
+
 info "Done. Reboot to load patched modules:"
 info "  sudo reboot"
 info ""
