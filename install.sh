@@ -113,6 +113,15 @@ info "Installing aikitoria source to ${DKMS_SRC}..."
 rm -rf "${DKMS_SRC}"
 git clone --branch "${REPO_BRANCH}" --depth 1 "${AIKIT_REPO_URL}" "${DKMS_SRC}"
 
+# --- Apply kernel API compat patches (idempotent) ---
+# A new kernel can change an API the pinned driver uses, breaking the DKMS
+# build (the P2P patch does not cover kernel compat). These port NVIDIA's
+# own compat handling (conftest probe + #if shim) into the fresh tree.
+# Non-fatal: if a patch no longer applies, warn and let a DKMS failure be the
+# loud signal (fix the patch, re-run this script).
+"${SCRIPT_DIR}/apply-kernel-compat-patches.sh" "${DKMS_SRC}" "${SCRIPT_DIR}/patches" \
+    || warn "Kernel-compat patch problem (see above); DKMS build may fail on new kernels."
+
 # --- Generate dkms.conf ---
 info "Generating dkms.conf..."
 write_dkms_conf "${DKMS_SRC}" "${LATEST_PATCH}"
@@ -158,18 +167,26 @@ info "Installing pacman hook for driver upgrades..."
 cp "${SCRIPT_DIR}/p2p-lib.sh"                   "${DEST_DIR}/"
 cp "${SCRIPT_DIR}/99-nvidia-p2p-driver.hook"    "${HOOK_DIR}/"
 cp "${SCRIPT_DIR}/rebuild-nvidia-p2p-driver.sh" "${DEST_DIR}/"
+cp "${SCRIPT_DIR}/apply-kernel-compat-patches.sh" "${DEST_DIR}/"
 cp "${SCRIPT_DIR}/verify.sh"                    "${DEST_DIR}/"
-chmod +x "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh" "${DEST_DIR}/verify.sh"
+cp "${SCRIPT_DIR}/verify-boot-chain.sh"          "${DEST_DIR}/"
+chmod +x "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh" \
+         "${DEST_DIR}/apply-kernel-compat-patches.sh" \
+         "${DEST_DIR}/verify.sh" "${DEST_DIR}/verify-boot-chain.sh"
+install -d -m 0755 "${COMPAT_PATCH_DIR}"
+cp "${SCRIPT_DIR}/patches/"*.patch "${COMPAT_PATCH_DIR}/"
 cp "${SCRIPT_DIR}/logrotate.conf" /etc/logrotate.d/nvidia-p2p.conf
 
-# --- Install systemd timer for weekly patch checks ---
-info "Installing systemd timer for weekly patch checks..."
-cp "${SCRIPT_DIR}/nvidia-p2p-check.service" /etc/systemd/system/
-cp "${SCRIPT_DIR}/nvidia-p2p-check.timer"   /etc/systemd/system/
+# --- Install systemd timers (weekly patch checks + boot-chain verification) ---
+info "Installing systemd timers (weekly patch checks, weekly boot-chain verification)..."
+cp "${SCRIPT_DIR}/nvidia-p2p-check.service"     /etc/systemd/system/
+cp "${SCRIPT_DIR}/nvidia-p2p-check.timer"       /etc/systemd/system/
+cp "${SCRIPT_DIR}/nvidia-p2p-bootcheck.service" /etc/systemd/system/
+cp "${SCRIPT_DIR}/nvidia-p2p-bootcheck.timer"   /etc/systemd/system/
 cp "${SCRIPT_DIR}/check-p2p-update.sh" "${DEST_DIR}/"
 chmod +x "${DEST_DIR}/check-p2p-update.sh"
 systemctl daemon-reload
-systemctl enable --now nvidia-p2p-check.timer
+systemctl enable --now nvidia-p2p-check.timer nvidia-p2p-bootcheck.timer
 
 info "Done. Reboot to load patched modules:"
 info "  sudo reboot"

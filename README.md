@@ -16,6 +16,8 @@ Enables PCIe BAR1 P2P on consumer GPUs (RTX 3090, 4090, 5090) where NVLink is no
 - Pins `nvidia-open-dkms`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia`, `lib32-opencl-nvidia`, and `lib32-nvidia-utils` to prevent version mismatches
 - Installs a pacman hook that auto-rebuilds when aikitoria releases new patches
 - Installs a weekly systemd timer that checks for new patches
+- Applies kernel API compat patches (`patches/*.compat.patch`) so the pinned driver still builds when a new kernel changes a driver API
+- Runs weekly boot-chain verification of every Limine menu entry (ESP image hash, module tree, GPU driver)
 - Ships a `verify.sh` one-shot check that proves P2P is actually engaged
 - Guards the DKMS build with a lock (no two concurrent builds) and rotates its logs
 
@@ -126,6 +128,29 @@ When you run `pacman -Syu` and a new kernel is installed, DKMS automatically reb
 ### No patch available
 
 If aikitoria hasn't patched the new driver yet, `IgnorePkg` stays active. You remain on the older patched driver until aikitoria catches up.
+
+## Kernel API compatibility
+
+A new CachyOS kernel can change a kernel API the pinned driver uses (kernel 7.3.0 changed `dmem_cgroup_register_region()` to take a `struct dmem_cgroup_init *`). When that happens the DKMS build for the new kernel fails and the new kernel gets no GPU driver — while the boot menu still offers it.
+
+`patches/*.compat.patch` ports the compat handling NVIDIA ships in newer stock drivers (a conftest compile-probe plus an `#if` shim) into the pinned aikitoria tree:
+
+- `install.sh` and the rebuild hook apply them to the fresh clone **before** DKMS registration. Idempotent — if a future aikitoria branch already carries the fix, they're skipped as "already present".
+- If a patch no longer applies to a new driver version, a warning is logged and the DKMS build failure is the loud signal (fix the patch, re-run `install.sh`).
+
+### Boot-chain verification
+
+`verify-boot-chain.sh` audits every Limine menu entry and catches the three states in which a reboot silently lands on a broken GPU box:
+
+| State | Meaning |
+|---|---|
+| `STALE` | ESP vmlinuz doesn't match the installed kernel (upgrade whose post-transaction hook was interrupted) |
+| `ORPHAN` | entry boots a kernel whose `/usr/lib/modules/<ver>` was deleted (zero loadable modules → ESP mount, LVM, networking all fail) |
+| `NODEV` | a menu kernel has no nvidia module built for it (failed DKMS build) |
+
+Run it any time: `sudo verify-boot-chain.sh`. `--fix` additionally auto-repairs `STALE` entries whose module tree and GPU driver are intact by re-running the limine mkinitcpio hook for the owning package (the hook reads its kernel targets from **stdin** — that's what `--fix` feeds it). The weekly `nvidia-p2p-bootcheck.timer` runs it automatically; log at `/var/log/nvidia-p2p-bootchain.log`.
+
+> **Don't reboot mid kernel+driver upgrade.** The post-transaction hooks (depmod → dkms → limine) take minutes; an interrupted run leaves a `STALE`/`ORPHAN` entry behind. If it happens anyway: `sudo verify-boot-chain.sh --fix`.
 
 ## Troubleshooting
 

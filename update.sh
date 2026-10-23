@@ -18,7 +18,9 @@ error() { echo -e "${RED}[nvidia-p2p]${NC} $*" >&2; exit 1; }
 
 # --- Sanity: running from a valid repo checkout? ---
 for F in p2p-lib.sh check-p2p-update.sh rebuild-nvidia-p2p-driver.sh \
-         99-nvidia-p2p-driver.hook nvidia-p2p-check.service nvidia-p2p-check.timer; do
+         99-nvidia-p2p-driver.hook nvidia-p2p-check.service nvidia-p2p-check.timer \
+         apply-kernel-compat-patches.sh verify-boot-chain.sh \
+         nvidia-p2p-bootcheck.service nvidia-p2p-bootcheck.timer; do
     [ -f "${SCRIPT_DIR}/${F}" ] || error "Missing ${F}. Run this from the CachyOS-P2P-Nvidia repo root."
 done
 
@@ -40,17 +42,31 @@ deploy() {
 deploy "${SCRIPT_DIR}/p2p-lib.sh"                   "${DEST_DIR}/p2p-lib.sh"
 deploy "${SCRIPT_DIR}/check-p2p-update.sh"         "${DEST_DIR}/check-p2p-update.sh"
 deploy "${SCRIPT_DIR}/rebuild-nvidia-p2p-driver.sh" "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh"
+deploy "${SCRIPT_DIR}/apply-kernel-compat-patches.sh" "${DEST_DIR}/apply-kernel-compat-patches.sh"
 deploy "${SCRIPT_DIR}/verify.sh"                    "${DEST_DIR}/verify.sh"
+deploy "${SCRIPT_DIR}/verify-boot-chain.sh"         "${DEST_DIR}/verify-boot-chain.sh"
 deploy "${SCRIPT_DIR}/99-nvidia-p2p-driver.hook"    "${HOOK_DIR}/99-nvidia-p2p-driver.hook"
 deploy "${SCRIPT_DIR}/logrotate.conf"               "/etc/logrotate.d/nvidia-p2p.conf"
 deploy "${SCRIPT_DIR}/nvidia-p2p-check.service"     "/etc/systemd/system/nvidia-p2p-check.service"
 deploy "${SCRIPT_DIR}/nvidia-p2p-check.timer"        "/etc/systemd/system/nvidia-p2p-check.timer"
+deploy "${SCRIPT_DIR}/nvidia-p2p-bootcheck.service" "/etc/systemd/system/nvidia-p2p-bootcheck.service"
+deploy "${SCRIPT_DIR}/nvidia-p2p-bootcheck.timer"  "/etc/systemd/system/nvidia-p2p-bootcheck.timer"
 
-chmod +x "${DEST_DIR}/check-p2p-update.sh" "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh" "${DEST_DIR}/verify.sh"
+# Compat patches (kernel API compat, applied to fresh driver clones).
+# Keep in sync with COMPAT_PATCH_DIR in p2p-lib.sh.
+COMPAT_PATCH_DIR="/usr/local/share/nvidia-p2p/patches"
+install -d -m 0755 "${COMPAT_PATCH_DIR}"
+for P in "${SCRIPT_DIR}/patches/"*.patch; do
+    deploy "${P}" "${COMPAT_PATCH_DIR}/$(basename "${P}")"
+done
+
+chmod +x "${DEST_DIR}/check-p2p-update.sh" "${DEST_DIR}/rebuild-nvidia-p2p-driver.sh" \
+         "${DEST_DIR}/apply-kernel-compat-patches.sh" "${DEST_DIR}/verify.sh" \
+         "${DEST_DIR}/verify-boot-chain.sh"
 
 # --- Reload systemd (always, so enabled/started state is current) ---
 systemctl daemon-reload
-systemctl enable --now nvidia-p2p-check.timer
+systemctl enable --now nvidia-p2p-check.timer nvidia-p2p-bootcheck.timer
 
 # --- Report ---
 if [ ${#CHANGED[@]} -eq 0 ]; then

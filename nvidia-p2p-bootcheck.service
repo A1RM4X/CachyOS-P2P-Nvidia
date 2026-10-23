@@ -1,0 +1,7 @@
+[Unit]
+Description=Verify Limine boot chain (ESP images, module trees, GPU drivers)
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/verify-boot-chain.sh
