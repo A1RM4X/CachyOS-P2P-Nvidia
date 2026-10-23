@@ -226,6 +226,16 @@ Removes patched modules, pacman hooks, systemd timer, and restores stock `nvidia
 
 Expected effect (GA102, from gpu-unlock's 3090 Ti measurements): FP16 ~87→118 TFLOPS, BF16 ~87→157 TFLOPS, TF32 ~42→82 TFLOPS.
 
+Measured on a 4× RTX 3090 box (8192³ cuBLAS GEMM, median of 7 runs, min–max across cards; the stock row is NVIDIA's published dense spec):
+
+| Power limit | BF16 | FP16 | FP32 |
+|---|---|---|---|
+| stock (no unlock) | ~71 | ~71 | ~35 |
+| unlocked @ 220 W cap | 70–88 | 61–76 | ~22 |
+| unlocked @ 350 W (default) | 124.6–134.8 | 117.2–119.1 | 26.3 |
+
+At the full 350 W budget that is ≈1.8× stock BF16, matching upstream. Under an aggressive power cap (220 W) the gain is masked — the extra issue rate converts to clock loss and dense GEMM shows no measurable change — so the unlock only pays off when the cards are allowed to spend real power.
+
 ```bash
 # Standalone (or say yes to the prompt during install.sh)
 sudo ./unlock-ga100.sh
