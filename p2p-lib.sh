@@ -12,6 +12,9 @@
 # aikitoria repo and local bare mirror. Overridable for testing.
 AIKIT_REPO_URL="${AIKIT_REPO_URL:-https://github.com/aikitoria/open-gpu-kernel-modules.git}"
 MIRROR_DIR="${MIRROR_DIR:-/opt/nvidia-p2p-mirror}"
+# Deployed kernel API compatibility patches (repo patches/ dir installed here
+# by install.sh; sourced by apply-kernel-compat-patches.sh).
+COMPAT_PATCH_DIR="${COMPAT_PATCH_DIR:-/usr/local/share/nvidia-p2p/patches}"
 # /etc/pacman.conf, overridable for testing.
 PACMAN_CONF="${PACMAN_CONF:-/etc/pacman.conf}"
 

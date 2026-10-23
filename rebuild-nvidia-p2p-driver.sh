@@ -70,6 +70,14 @@ DKMS_SRC="/usr/src/nvidia-${NEW_VER}"
 rm -rf "${DKMS_SRC}"
 git clone --branch "${NEW_VER}-p2p" "${GIT_SRC}" "${DKMS_SRC}"
 
+# Apply kernel API compat patches to the fresh tree (idempotent). Non-fatal:
+# a context mismatch is logged; the worst case is a failed DKMS build for a
+# NEW kernel, which this log records loudly.
+if [ -x /usr/local/bin/apply-kernel-compat-patches.sh ]; then
+    /usr/local/bin/apply-kernel-compat-patches.sh "${DKMS_SRC}" \
+        || echo "[nvidia-p2p] WARNING: kernel-compat patch problem for ${DKMS_SRC} (see above)"
+fi
+
 # Generate dkms.conf and build.
 write_dkms_conf "${DKMS_SRC}" "${NEW_VER}"
 dkms add "nvidia/${NEW_VER}"
