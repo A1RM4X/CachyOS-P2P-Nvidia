@@ -58,12 +58,14 @@ fi
 
 echo "[nvidia-p2p] Rebuilding patched modules for driver ${NEW_VER}..."
 
-# Remove old DKMS modules.
-OLD_VER=$(dkms status 2>/dev/null | grep "^nvidia/" | head -1 | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' || true)
-if [ -n "$OLD_VER" ]; then
-    dkms remove "nvidia/${OLD_VER}" --all 2>/dev/null || true
-    rm -rf "/usr/src/nvidia-${OLD_VER}"
-fi
+# Remove old DKMS modules (ALL registrations, not just 'head -1' - a leftover
+# older version would survive and make 'dkms add' below fail with rc=3).
+mapfile -t OLD_VERS < <(dkms status 2>/dev/null | grep "^nvidia/" | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' | sort -u)
+for OV in "${OLD_VERS[@]}"; do
+    [ -n "$OV" ] || continue
+    dkms remove "nvidia/${OV}" --all 2>/dev/null || true
+    rm -rf "/usr/src/nvidia-${OV}"
+done
 
 # Clone aikitoria source (from the local mirror - no network needed in hook env).
 DKMS_SRC="/usr/src/nvidia-${NEW_VER}"

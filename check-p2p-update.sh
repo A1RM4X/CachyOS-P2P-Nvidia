@@ -19,6 +19,9 @@ echo "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
 # --- Maintain local bare mirror (for pacman hooks that lack network) ---
 # Full clone (not shallow): a shallow clone only fetches the default branch,
 # missing all the -p2p version branches we need.
+# --filter=blob:none: the mirror only needs refs + trees for branch
+# discovery and clone negotiation; blobs are fetched on demand, which shrinks
+# the initial clone (many GB of the NVIDIA tree) by most of its size.
 # A mirror is "valid" if git can resolve HEAD against it (catches a partial
 # clone left by an interrupted first run).
 mirror_valid() {
@@ -31,7 +34,7 @@ mirror_valid() {
 create_mirror() {
     local tmp
     tmp=$(mktemp -d "${MIRROR_DIR}.XXXXXX")
-    if git clone --bare "${AIKIT_REPO_URL}" "${tmp}" >/dev/null 2>&1; then
+    if git clone --bare --filter=blob:none "${AIKIT_REPO_URL}" "${tmp}" >/dev/null 2>&1; then
         rm -rf "${MIRROR_DIR}"
         mv "${tmp}" "${MIRROR_DIR}"
     else

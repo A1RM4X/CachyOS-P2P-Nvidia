@@ -11,11 +11,15 @@ source "${SCRIPT_DIR}/p2p-lib.sh"
 [ "$(id -u)" -eq 0 ] || { echo "Run with sudo"; exit 1; }
 
 echo "[nvidia-p2p] Removing patched DKMS modules..."
-STOCK_VER=$(dkms status 2>/dev/null | grep "^nvidia/" | head -1 | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' || true)
-if [ -n "$STOCK_VER" ]; then
-    dkms remove "nvidia/${STOCK_VER}" --all 2>/dev/null || true
-    rm -rf "/usr/src/nvidia-${STOCK_VER}"
-fi
+# Remove ALL 'nvidia/*' registrations (not just 'head -1'): a leftover older
+# version would otherwise survive and break any subsequent 'dkms add'.
+mapfile -t STOCK_VERS < <(dkms status 2>/dev/null | grep "^nvidia/" | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' | sort -u)
+for SV in "${STOCK_VERS[@]}"; do
+    [ -n "$SV" ] || continue
+    echo "[nvidia-p2p] Removing DKMS modules ${SV}..."
+    dkms remove "nvidia/${SV}" --all 2>/dev/null || true
+    rm -rf "/usr/src/nvidia-${SV}"
+done
 
 # Also clean up any stale 'nvidia-p2p' registrations left from early versions.
 STALE_P2P=$(dkms status 2>/dev/null | grep "^nvidia-p2p/" | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' | sort -u || true)
@@ -32,7 +36,9 @@ echo "[nvidia-p2p] Installing stock nvidia-open-dkms..."
 pacman -S --noconfirm --needed nvidia-open-dkms
 
 # Optionally switch back to CachyOS pre-built driver packages.
-read -rp "Switch back to pre-built linux-cachyos-*-nvidia-open? [Y/n] " -r
+# Default is Y (matches the prompt); 'read' can hit EOF in non-interactive
+# runs - never let set -e kill an uninstall mid-way.
+read -rp "Switch back to pre-built linux-cachyos-*-nvidia-open? [Y/n] " -r || REPLY="y"
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     echo "[nvidia-p2p] Switching back to pre-built driver..."
     # Remove stock DKMS first so the pre-built packages can own the module dirs.
@@ -74,6 +80,14 @@ echo "[nvidia-p2p] Disabling systemd timer..."
 systemctl disable --now nvidia-p2p-check.timer 2>/dev/null || true
 rm -f /etc/systemd/system/nvidia-p2p-check.timer
 rm -f /etc/systemd/system/nvidia-p2p-check.service
+# Boot-chain verification stack (v0.12+): timer, deployed scripts, patches,
+# and the local mirror (full bare clone - many GB).
+systemctl disable --now nvidia-p2p-bootcheck.timer 2>/dev/null || true
+rm -f /etc/systemd/system/nvidia-p2p-bootcheck.timer
+rm -f /etc/systemd/system/nvidia-p2p-bootcheck.service
+rm -f /usr/local/bin/verify-boot-chain.sh /usr/local/bin/apply-kernel-compat-patches.sh
+rm -rf /usr/local/share/nvidia-p2p
+rm -rf "${MIRROR_DIR:-/opt/nvidia-p2p-mirror}"
 rm -f /usr/local/bin/check-p2p-update.sh
 rm -f /usr/local/bin/p2p-lib.sh
 rm -f /usr/local/bin/verify.sh

@@ -16,6 +16,18 @@ info()  { echo -e "${GREEN}[nvidia-p2p]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[nvidia-p2p]${NC} $*"; }
 error() { echo -e "${RED}[nvidia-p2p]${NC} $*" >&2; exit 1; }
 
+# Prompt for confirmation on a TTY. A bare 'read' under set -e exits on EOF,
+# so in a non-interactive (scripted/CI) run the abort must be explicit -
+# never silently proceed past a warning, never die mid-install.
+confirm() {
+    if [ -t 0 ]; then
+        read -rp "Continue anyway? [y/N] " -r REPLY || REPLY=""
+    else
+        error "Interactive confirmation required (see warning above). Re-run with a TTY."
+    fi
+    [[ $REPLY =~ ^[Yy]$ ]] || error "Aborted"
+}
+
 [ "$(id -u)" -eq 0 ] || error "Run with sudo"
 
 command -v clang    &>/dev/null || error "clang not installed: sudo pacman -S clang lld"
@@ -26,6 +38,25 @@ command -v dkms     &>/dev/null || error "dkms not installed: sudo pacman -S dkm
 LOCKFILE="/run/nvidia-p2p-build.lock"
 exec 9>"$LOCKFILE"
 flock -n 9 || error "Another nvidia-p2p build is already running; try again in a moment."
+
+# --- Secure Boot check (prompted BEFORE the irreversible driver swap) ---
+if [ -f /sys/firmware/efi/efivars ] && command -v mokutil &>/dev/null; then
+    MOK_STATE=$(mokutil --sb-state 2>/dev/null || true)
+    case "$MOK_STATE" in
+        *[Ee]nabled*)
+        warn "Secure Boot is enabled. DKMS modules may fail to load."
+        warn "Either disable Secure Boot or enroll the MOK key when prompted."
+        confirm
+        ;;
+    esac
+fi
+
+# --- IOMMU passthrough check ---
+if ! grep -q "iommu=pt" /proc/cmdline; then
+    warn "IOMMU passthrough not detected in kernel cmdline."
+    warn "Add 'amd_iommu=on iommu=pt' to your bootloader config."
+    confirm
+fi
 
 # --- Switch from pre-built to DKMS driver ---
 if ! pacman -Q nvidia-open-dkms &>/dev/null; then
@@ -39,29 +70,6 @@ if ! pacman -Q nvidia-open-dkms &>/dev/null; then
     else
         error "No NVIDIA driver found. Install linux-cachyos-nvidia-open or nvidia-open-dkms first."
     fi
-fi
-
-# --- Secure Boot check ---
-if [ -f /sys/firmware/efi/efivars ] && command -v mokutil &>/dev/null; then
-    MOK_STATE=$(mokutil --sb-state 2>/dev/null || true)
-    case "$MOK_STATE" in
-        *[Ee]nabled*)
-        warn "Secure Boot is enabled. DKMS modules may fail to load."
-        warn "Either disable Secure Boot or enroll the MOK key when prompted."
-        read -rp "Continue anyway? [y/N] " -r
-        # shellcheck disable=SC2317  # error() invoked on the false-branch of [[ ]]
-        [[ $REPLY =~ ^[Yy]$ ]] || error "Aborted"
-        ;;
-    esac
-fi
-
-# --- IOMMU passthrough check ---
-if ! grep -q "iommu=pt" /proc/cmdline; then
-    warn "IOMMU passthrough not detected in kernel cmdline."
-    warn "Add 'amd_iommu=on iommu=pt' to your bootloader config."
-    read -rp "Continue anyway? [y/N] " -r
-    # shellcheck disable=SC2317  # error() invoked on the false-branch of [[ ]]
-    [[ $REPLY =~ ^[Yy]$ ]] || error "Aborted"
 fi
 
 # --- Find the aikitoria patch matching the installed driver ---
@@ -86,13 +94,17 @@ fi
 REPO_BRANCH="${LATEST_PATCH}-p2p"
 info "Using aikitoria patch: ${LATEST_PATCH} (branch: ${REPO_BRANCH})"
 
-# --- Remove existing stock DKMS modules ---
-STOCK_VER=$(dkms status 2>/dev/null | grep "^nvidia/" | head -1 | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' || true)
-if [ -n "$STOCK_VER" ]; then
-    info "Removing existing DKMS modules ${STOCK_VER}..."
-    dkms remove "nvidia/${STOCK_VER}" --all 2>/dev/null || true
-    rm -rf "/usr/src/nvidia-${STOCK_VER}"
-fi
+# --- Remove existing stock DKMS modules (ALL registrations, not just one) ---
+# Removing only 'head -1' would leave an older leftover (e.g. stock
+# nvidia/590.x) in the DKMS tree, and 'dkms add' below then fails with
+# rc=3 ("DKMS tree already contains..."), aborting the install mid-way.
+mapfile -t STOCK_VERS < <(dkms status 2>/dev/null | grep "^nvidia/" | cut -d/ -f2 | cut -d, -f1 | sed 's/:.*//' | sort -u)
+for SV in "${STOCK_VERS[@]}"; do
+    [ -n "$SV" ] || continue
+    info "Removing existing DKMS modules ${SV}..."
+    dkms remove "nvidia/${SV}" --all 2>/dev/null || true
+    rm -rf "/usr/src/nvidia-${SV}"
+done
 
 # --- Clean up stale 'nvidia-p2p' DKMS registrations ---
 # Early versions of this script registered modules under the name 'nvidia-p2p'
@@ -196,7 +208,7 @@ if command -v lspci &>/dev/null && lspci -nn 2>/dev/null | grep -q 'GA10[2346] \
     warn "The GPU unlock raises the FP/BF16 issue rate; clocks and power draw may
     increase with your power config. You apply this tweak at your own
     responsibility — verify temps/clocks after enabling (see README)."
-    read -rp "Unlock FP/BF16 issue rate with gpu-unlock (optional)? [y/N] " -r
+    read -rp "Unlock FP/BF16 issue rate with gpu-unlock (optional)? [y/N] " -r || REPLY=""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         "${SCRIPT_DIR}/unlock-ga100.sh" --yes \
             || warn "gpu-unlock setup failed (see above); P2P install is still complete. Retry: sudo ./unlock-ga100.sh"
