@@ -4,6 +4,7 @@
 #
 # Usage:
 #   sudo ./unlock-ga100.sh          Install the unlock (package + boot opt-in)
+#   sudo ./unlock-ga100.sh --yes    Same, skipping the interactive confirmation
 #   sudo ./unlock-ga100.sh --remove  Revert everything
 #
 # Reversible: removing the cmdline param (or the packages) restores stock
@@ -28,9 +29,10 @@ error() { echo -e "${RED}[gpu-unlock]${NC} $*" >&2; exit 1; }
 
 case "${1:-}" in
     "")          MODE=install ;;
+    --yes)       MODE=install; ASSUME_YES=1 ;;
     --remove)     MODE=remove ;;
     -h|--help)    grep '^# ' "$0" | sed 's/^# //'; exit 0 ;;
-    *)           error "Unknown argument: ${1} (expected --remove or --help)" ;;
+    *)           error "Unknown argument: ${1} (expected --yes, --remove or --help)" ;;
 esac
 
 # Count GA10x GPUs (GA102/GA103/GA104/GA106). The " [...]" part matches the
@@ -101,6 +103,39 @@ if [ "${GA10X:-0}" -eq 0 ]; then
     exit 0
 fi
 info "Found ${GA10X} GA10x card(s). Unlocking FP/BF16 issue rate (pre-nvidia, no VBIOS change)..."
+
+# --- Disclaimer + explicit confirmation (hardware-level tweak) ---
+# --yes is only valid for the install.sh flow, which asks its own prompt;
+# direct interactive runs must always confirm; non-interactive direct runs
+# are refused so nobody gets the tweak without seeing this.
+cat <<'EOF'
+WARNING — read before continuing:
+The GPU unlock raises the FP/BF16 issue rate of GA10x cards. Depending on
+your power limits, cooling and workload, the cards may then run at higher
+clocks and draw more power than before.
+
+- You apply this tweak at your own responsibility.
+- After enabling it, verify that temperatures, clocks and power draw are
+  in a normal range for your hardware under your usual workload, e.g.:
+      nvidia-smi -q -d THERMAL,POWER
+      nvidia-smi -q -d CLOCK
+- If any card overheats, throttles abnormally or becomes unstable, revert:
+      sudo ./unlock-ga100.sh --remove && sudo reboot
+
+The unlock is provided as-is, without warranty of any kind.
+EOF
+
+if [ -n "${ASSUME_YES:-}" ]; then
+    info "Continuing (confirmed via --yes)..."
+elif [ -t 0 ]; then
+    read -rp "Apply the GPU unlock? [y/N] " -r CONFIRM </dev/tty || CONFIRM=""
+    case "${CONFIRM:-}" in
+        [Yy]*) ;;
+        *) info "Aborted; nothing was changed."; exit 0 ;;
+    esac
+else
+    error "Non-interactive run: re-run interactively, or pass --yes if you already confirmed."
+fi
 
 exec 9>"$LOCKFILE"
 flock -n 9 || error "Another gpu-unlock build is already running; try again in a moment."

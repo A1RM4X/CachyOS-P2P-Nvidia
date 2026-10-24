@@ -222,6 +222,14 @@ Removes patched modules, pacman hooks, systemd timer, and restores stock `nvidia
 
 ## Optional: GPU Unlock (RTX 30-series FP/BF16 issue rate)
 
+> **Disclaimer** — the unlock raises the FP/BF16 issue rate; depending on
+> your power limits, cooling and workload, clocks and power draw may
+> increase. Applying it is at your own responsibility. After enabling it,
+> make sure temperatures, clocks and power draw behave normally under your
+> usual workload (`nvidia-smi -q -d THERMAL,POWER`); if anything looks off,
+> revert with `sudo ./unlock-ga100.sh --remove && sudo reboot`. Provided
+> as-is, without warranty of any kind.
+
 `install.sh` offers, on systems with GA10x cards (RTX 3090/3090 Ti/3080/3070/3060), an optional step that installs [Zagitta/gpu-unlock](https://github.com/Zagitta/gpu-unlock): an early kernel module that unlocks the FP16/BF16 (and TF32) instruction issue rate to professional-card levels, running **before** the NVIDIA driver binds the card. It does not flash or modify VBIOS, and the P2P patch is unaffected — the two stack.
 
 Expected effect (GA102, from gpu-unlock's 3090 Ti measurements): FP16 ~87→118 TFLOPS, BF16 ~87→157 TFLOPS, TF32 ~42→82 TFLOPS.

@@ -193,9 +193,12 @@ systemctl enable --now nvidia-p2p-check.timer nvidia-p2p-bootcheck.timer
 # install, which is already complete.
 if command -v lspci &>/dev/null && lspci -nn 2>/dev/null | grep -q 'GA10[2346] \['; then
     info "RTX 30-series (GA10x) card(s) detected."
+    warn "The GPU unlock raises the FP/BF16 issue rate; clocks and power draw may
+    increase with your power config. You apply this tweak at your own
+    responsibility — verify temps/clocks after enabling (see README)."
     read -rp "Unlock FP/BF16 issue rate with gpu-unlock (optional)? [y/N] " -r
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        "${SCRIPT_DIR}/unlock-ga100.sh" \
+        "${SCRIPT_DIR}/unlock-ga100.sh" --yes \
             || warn "gpu-unlock setup failed (see above); P2P install is still complete. Retry: sudo ./unlock-ga100.sh"
     fi
 fi
