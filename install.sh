@@ -200,11 +200,16 @@ chmod +x "${DEST_DIR}/check-p2p-update.sh"
 systemctl daemon-reload
 systemctl enable --now nvidia-p2p-check.timer nvidia-p2p-bootcheck.timer
 
-# --- Optional: GA10x (RTX 30-series) FP/BF16 issue-rate unlock ---
+# --- Optional: NVIDIA 20/30/40-series FP/BF16 issue-rate unlock ---
 # Separate script (no shared state); a failure here must not fail the P2P
-# install, which is already complete.
-if command -v lspci &>/dev/null && lspci -nn 2>/dev/null | grep -q 'GA10[2346] \['; then
-    info "RTX 30-series (GA10x) card(s) detected."
+# install, which is already complete. Chip names from `lspci -nn`
+# (GA10x=30-series stable, AD10x/TU10x=40/20-series experimental upstream).
+if command -v lspci &>/dev/null && lspci -nn 2>/dev/null | grep -qE '(GA10[23467]|AD10[2-7]|TU10[246]) \['; then
+    if lspci -nn 2>/dev/null | grep -qE '(AD10[2-7]|TU10[246]) \['; then
+        info "NVIDIA 20/30/40-series card(s) detected (40/20-series support is experimental upstream)."
+    else
+        info "RTX 30-series (GA10x) card(s) detected."
+    fi
     warn "The GPU unlock raises the FP/BF16 issue rate; clocks and power draw may
     increase with your power config. You apply this tweak at your own
     responsibility — verify temps/clocks after enabling (see README)."

@@ -220,7 +220,7 @@ sudo reboot
 
 Removes patched modules, pacman hooks, systemd timer, and restores stock `nvidia-open-dkms`. Optionally switches back to CachyOS pre-built driver.
 
-## Optional: GPU Unlock (RTX 30-series FP/BF16 issue rate)
+## Optional: GPU Unlock (RTX 20/30/40-series FP/BF16 issue rate)
 
 > **Disclaimer** — the unlock raises the FP/BF16 issue rate; depending on
 > your power limits, cooling and workload, clocks and power draw may
@@ -230,7 +230,20 @@ Removes patched modules, pacman hooks, systemd timer, and restores stock `nvidia
 > revert with `sudo ./unlock-ga100.sh --remove && sudo reboot`. Provided
 > as-is, without warranty of any kind.
 
-`install.sh` offers, on systems with GA10x cards (RTX 3090/3090 Ti/3080/3070/3060), an optional step that installs [Zagitta/gpu-unlock](https://github.com/Zagitta/gpu-unlock): an early kernel module that unlocks the FP16/BF16 (and TF32) instruction issue rate to professional-card levels, running **before** the NVIDIA driver binds the card. It does not flash or modify VBIOS, and the P2P patch is unaffected — the two stack.
+`install.sh` offers, on systems with supported NVIDIA cards, an optional step that installs [Zagitta/gpu-unlock](https://github.com/Zagitta/gpu-unlock) 2.0.0: an early kernel module that unlocks the FP16/BF16 (and TF32) instruction issue rate to professional-card levels, running **before** the NVIDIA driver binds the card. It does not flash or modify VBIOS, and the P2P patch is unaffected — the two stack. The build is pinned to an exact upstream commit via the vendored [`packaging/p2p-gpu-unlock/PKGBUILD`](packaging/p2p-gpu-unlock/PKGBUILD) (sha256-checked tarball, pinned NVIDIA inputs) — upstream HEAD is never pulled implicitly.
+
+Supported cards (per upstream, verified against their 2.0.0 release):
+
+| Generation | Cards | Status |
+|---|---|---|
+| Ampere (RTX 30) | 3050/3060/3070/3080/3090 (+Ti/SUPER, laptop) | Stable, 100+ user reports |
+| Ada Lovelace (RTX 40) | 4060–4090 | **Experimental** |
+| Turing (RTX 20) | 2060–2080 Ti, Titan RTX | **Experimental** |
+| Blackwell (RTX 50) | — | Not supported (script skips with a message) |
+
+Laptop note: the unlock only sticks if the dedicated GPU is never fully powered off; many laptops power it down when idle, which silently resets the unlock (disable GPU power gating / keep the dGPU active).
+
+New in 2.0.0: cards are re-unlocked automatically after resume from suspend (the `resume` module param, default on) — 1.0.0 lost the unlock when a card powered off.
 
 Expected effect (GA102, from gpu-unlock's 3090 Ti measurements): FP16 ~87→118 TFLOPS, BF16 ~87→157 TFLOPS, TF32 ~42→82 TFLOPS.
 
@@ -262,7 +275,8 @@ Notes:
 
 - Opt-in is the kernel parameter `gpu_unlock.targets=all`, written by the script to a Limine drop-in (`/etc/limine-entry-tool.d/gpu-unlock.conf`). Without it the module is inert.
 - The script also installs `zz-p2p-gpu-unlock.conf` (mkinitcpio drop-in): it strips the early nvidia stack (CachyOS chwd adds it for the early KMS console), keeps a single plain `gpu_unlock` entry, and blocks nvidia from loading inside the initramfs so it cannot race the unlock. nvidia loads normally after the root switch. While installed, early boot shows the plain framebuffer instead of the chwd console; the normal console appears once the driver loads.
-- Cards that are not GA102/GA103/GA104/GA106 (e.g. RTX 40/50-series) are skipped — no benefit, no harm.
+- Cards that gpu-unlock does not support (RTX 50-series/Blackwell) are logged and skipped — no benefit, no harm. The per-card outcome is visible in the boot journal.
+- **Package naming / AUR policy:** the packages are named `p2p-gpu-unlock-dkms` / `p2p-gpu-unlock-firmware` deliberately, so they never match the AUR `gpu-unlock-*` names — AUR helpers (paru etc.) will not track them or offer AUR upgrades, and there is no supply-chain link to the AUR. The AUR packages are a same-content mirror of the same pinned upstream; do **not** install them on top of ours (they can coexist, which would confuse the DKMS state). `--remove` cleans both namespaces.
 - If a card's firmware never stops, the module logs it and keeps the card usable; power off (not just reboot) before retrying.
 
 ## Contributing
