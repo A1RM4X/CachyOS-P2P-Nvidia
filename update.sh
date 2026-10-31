@@ -52,6 +52,13 @@ deploy "${SCRIPT_DIR}/nvidia-p2p-check.timer"        "/etc/systemd/system/nvidia
 deploy "${SCRIPT_DIR}/nvidia-p2p-bootcheck.service" "/etc/systemd/system/nvidia-p2p-bootcheck.service"
 deploy "${SCRIPT_DIR}/nvidia-p2p-bootcheck.timer"  "/etc/systemd/system/nvidia-p2p-bootcheck.timer"
 
+# gpu-unlock integration drop-in: only refresh it where the user opted in
+# (unlock-ga100.sh installs it). Never force it onto a non-unlock system -
+# it strips the early nvidia stack and changes early-boot console behavior.
+if [ -f /etc/mkinitcpio.conf.d/zz-p2p-gpu-unlock.conf ]; then
+    deploy "${SCRIPT_DIR}/zz-p2p-gpu-unlock.conf" "/etc/mkinitcpio.conf.d/zz-p2p-gpu-unlock.conf"
+fi
+
 # Compat patches (kernel API compat, applied to fresh driver clones).
 # Keep in sync with COMPAT_PATCH_DIR in p2p-lib.sh.
 COMPAT_PATCH_DIR="/usr/local/share/nvidia-p2p/patches"

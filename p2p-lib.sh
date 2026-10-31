@@ -56,6 +56,12 @@ _ignorepkg_set() {  # $1 = space-delimited tokens (may be empty -> drop the line
     if [ -n "$existing" ]; then
         sed -i "${existing}s/.*/IgnorePkg = ${tokens}/" "$PACMAN_CONF"
     else
+        # sed on a non-matching pattern is a silent no-op with rc 0 - fail loud
+        # instead of "succeeding" without writing the pin.
+        grep -q '^\[options\]' "$PACMAN_CONF" || {
+            echo "[nvidia-p2p] No [options] section in ${PACMAN_CONF}; IgnorePkg pin not written. Add an [options] section and re-run." >&2
+            return 1
+        }
         sed -i "/^\[options\]/a IgnorePkg = ${tokens}" "$PACMAN_CONF"
     fi
 }
@@ -96,7 +102,7 @@ unpin_p2p_packages() {
 # Print aikitoria "-p2p" branch versions, semver ascending.
 aikitoria_patches() {  # $1 = git URL or local bare-repo path
     timeout 30 git ls-remote --heads "$1" 2>/dev/null \
-        | grep -oE 'refs/heads/[0-9]+\.[0-9]+\.[0-9]+-p2p' \
+        | grep -oE 'refs/heads/[0-9]+\.[0-9]+\.[0-9]+-p2p$' \
         | sed 's#refs/heads/##; s/-p2p$//' \
         | sort -Vu
 }
